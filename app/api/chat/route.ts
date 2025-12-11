@@ -3,24 +3,28 @@ import { NextRequest, NextResponse } from "next/server";
 import OpenAI from "openai";
 import { getBot } from "../../../lib/bots";
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY
-});
+const apiKey = process.env.OPENAI_API_KEY;
 
-export const runtime = "edge";
+if (!apiKey) {
+  console.warn(
+    "OPENAI_API_KEY is not set. Set it in .env.local for dev and in your hosting env for prod."
+  );
+}
+
+const openai = new OpenAI({ apiKey });
 
 export async function POST(req: NextRequest) {
   try {
-    const body = await req.json();
-    const bot = getBot(body.botId ?? null);
-    const userMessages = body.messages ?? [];
-
-    if (!process.envOPENAI_API_KEY) {
+    if (!apiKey) {
       return NextResponse.json(
-        { error: "Server is misconfigured: missing OPENAI_API_KEY" },
+        { error: "Server missing OPENAI_API_KEY environment variable." },
         { status: 500 }
       );
     }
+
+    const body = await req.json();
+    const bot = getBot(body.botId ?? null);
+    const userMessages = body.messages ?? [];
 
     const messages = [
       { role: "system", content: bot.systemPrompt },
@@ -35,14 +39,14 @@ export async function POST(req: NextRequest) {
 
     const reply = completion.choices[0]?.message ?? {
       role: "assistant",
-      content: "No response generated."
+      content: "I couldn't generate a response."
     };
 
     return NextResponse.json({ reply });
   } catch (err: any) {
-    console.error(err);
+    console.error("Chat route error:", err?.message || err);
     return NextResponse.json(
-      { error: "Failed to generate response." },
+      { error: "Failed to generate response from OpenAI." },
       { status: 500 }
     );
   }
